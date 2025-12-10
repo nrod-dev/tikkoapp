@@ -1,12 +1,12 @@
 "use client";
 
 import AppLayout from "@/components/layout/AppLayout";
-import { ExpensesView } from "@/components/dashboard/ExpensesView";
+import { DashboardView } from "@/components/dashboard/DashboardView";
 
 export default function DashboardPage() {
   return (
     <AppLayout>
-      <ExpensesView />
+      <DashboardView />
     </AppLayout>
   );
 }

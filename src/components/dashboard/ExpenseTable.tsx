@@ -10,9 +10,9 @@ import {
     TableRow,
 } from "@/components/ui/table";
 import { cn, getMerchantStyle } from "@/lib/utils";
-import { FileText, Loader2, MoreHorizontal, Trash2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, FileText, Loader2, MoreHorizontal, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Expense } from "@/lib/data";
+import { Expense, CATEGORY_ICONS } from "@/lib/data";
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -27,9 +27,22 @@ interface ExpenseTableProps {
     isLoading: boolean;
     onRowClick: (expense: Expense) => void;
     onDelete: (id: string) => void;
+    currentPage: number;
+    totalPages: number;
+    onPageChange: (page: number) => void;
+    totalCount: number;
 }
 
-export function ExpenseTable({ data, isLoading, onRowClick, onDelete }: ExpenseTableProps) {
+export function ExpenseTable({
+    data,
+    isLoading,
+    onRowClick,
+    onDelete,
+    currentPage,
+    totalPages,
+    onPageChange,
+    totalCount
+}: ExpenseTableProps) {
     if (isLoading) {
         return <div className="p-10 flex justify-center"><Loader2 className="animate-spin h-8 w-8 text-blue-600" /></div>;
     }
@@ -67,9 +80,17 @@ export function ExpenseTable({ data, isLoading, onRowClick, onDelete }: ExpenseT
                                         <div className="flex items-center gap-3">
                                             <div className={cn(
                                                 "h-9 w-9 rounded-lg flex items-center justify-center text-white text-xs font-bold",
-                                                getMerchantStyle(expense.merchantName)
+                                                getMerchantStyle(expense.merchantName) // Keep color style or make generic? User said "representative icon". I will keep color for background but change content.
                                             )}>
-                                                {expense.merchantName.charAt(0)}
+                                                {/* Icon Logic */}
+                                                {(() => {
+                                                    // Dynamic icon selection
+                                                    const IconComponent = expense.category && CATEGORY_ICONS[expense.category]
+                                                        ? CATEGORY_ICONS[expense.category]
+                                                        : CATEGORY_ICONS["default"];
+
+                                                    return <IconComponent className="h-5 w-5" />;
+                                                })()}
                                             </div>
                                             <span>{expense.merchantName}</span>
                                         </div>
@@ -77,7 +98,9 @@ export function ExpenseTable({ data, isLoading, onRowClick, onDelete }: ExpenseT
                                     <TableCell>{expense.date}</TableCell>
                                     <TableCell>{expense.user}</TableCell>
                                     <TableCell className="text-right font-medium">
-                                        {expense.taxAmount.toLocaleString('es-AR', { minimumFractionDigits: 2 })} {expense.currency}
+                                        {expense.ivaAmount !== null
+                                            ? `${expense.ivaAmount.toLocaleString('es-AR', { minimumFractionDigits: 2 })} ${expense.currency}`
+                                            : "-"}
                                     </TableCell>
                                     <TableCell className="text-right font-bold">
                                         {expense.amount.toLocaleString('es-AR', { minimumFractionDigits: 2 })} {expense.currency}
@@ -117,6 +140,36 @@ export function ExpenseTable({ data, isLoading, onRowClick, onDelete }: ExpenseT
                         )}
                     </TableBody>
                 </Table>
+            </div>
+
+            {/* Pagination controls */}
+            <div className="flex items-center justify-between px-2 py-4">
+                <div className="flex-1 text-sm text-muted-foreground">
+                    Mostrando del {(currentPage - 1) * 10 + 1} al {Math.min(currentPage * 10, totalCount)} de {totalCount} resultados
+                </div>
+                <div className="flex items-center space-x-2">
+                    <Button
+                        variant="outline"
+                        className="h-8 w-8 p-0"
+                        onClick={() => onPageChange(Math.max(1, currentPage - 1))}
+                        disabled={currentPage === 1}
+                    >
+                        <span className="sr-only">Ir a la página anterior</span>
+                        <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    <div className="text-sm font-medium">
+                        Página {currentPage} de {totalPages}
+                    </div>
+                    <Button
+                        variant="outline"
+                        className="h-8 w-8 p-0"
+                        onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))}
+                        disabled={currentPage === totalPages}
+                    >
+                        <span className="sr-only">Ir a la página siguiente</span>
+                        <ChevronRight className="h-4 w-4" />
+                    </Button>
+                </div>
             </div>
         </div>
     );

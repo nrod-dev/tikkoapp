@@ -25,6 +25,7 @@ export function CategoryDonutChart() {
                 console.error("Error fetching categories:", error);
             } else {
                 setData(data as CategoryData[]);
+
             }
             setLoading(false);
         }
@@ -52,6 +53,7 @@ export function CategoryDonutChart() {
                                     outerRadius={80}
                                     paddingAngle={5}
                                     dataKey="total_amount"
+                                    nameKey="category"
                                 >
                                     {data.map((entry, index) => (
                                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />

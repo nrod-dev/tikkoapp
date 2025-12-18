@@ -6,33 +6,27 @@ import { supabase } from "@/lib/supabase";
 import { ExpenseTable } from "@/components/dashboard/ExpenseTable";
 import { ExpenseDetailsSheet } from "@/components/dashboard/ExpenseDetailsSheet";
 import { Expense } from "@/lib/data";
-import { Loader2, Plus } from "lucide-react"; // Importar Plus
-import { Button } from "@/components/ui/button"; // Importar Button
+import { Loader2, Plus, Sparkles } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { AIScanModal } from "@/components/dashboard/AIScanModal";
 
 export function ExpensesView() {
     const [expenses, setExpenses] = useState<Expense[]>([]);
     const [loading, setLoading] = useState(true);
     const [selectedExpense, setSelectedExpense] = useState<Expense | null>(null);
+    const [aiDraftData, setAiDraftData] = useState<any>(null); // Datos temporales de IA
     const [isSheetOpen, setIsSheetOpen] = useState(false);
+    const [isAIModalOpen, setIsAIModalOpen] = useState(false);
+
+    // Pagination state
+    const [currentPage, setCurrentPage] = useState(1);
+    const [totalCount, setTotalCount] = useState(0);
+    const pageSize = 10;
     const router = useRouter();
 
-    interface Ticket {
-        id: string;
-        merchant_name: string;
-        date: string;
-        amount: number;
-        currency: string;
-        status: 'approved' | 'rejected' | 'pending';
-        receipt_url: string;
-        created_at: string;
-        tax_details: { vat?: number; amount?: number } | null;
-        created_by: { full_name: string; email: string } | null;
-    }
-
     // Función para cargar datos (Memoizada)
-    const fetchTickets = useCallback(async () => {
-        // setLoading(true); // Opcional: no mostrar loader global en refrescos suaves
+    const fetchTickets = useCallback(async (page: number = 1) => {
         const { data: { session } } = await supabase.auth.getSession();
 
         if (!session) {
@@ -40,10 +34,16 @@ export function ExpensesView() {
             return;
         }
 
-        const { data: tickets, error } = await supabase
+        setLoading(true);
+
+        const from = (page - 1) * pageSize;
+        const to = from + pageSize - 1;
+
+        const { data: tickets, error, count } = await supabase
             .from('tickets')
-            .select('*, created_by(full_name)')
-            .order('created_at', { ascending: false });
+            .select('*, created_by(full_name)', { count: 'exact' })
+            .order('created_at', { ascending: false })
+            .range(from, to);
 
         if (error) console.error("Error fetching:", error);
 
@@ -59,28 +59,43 @@ export function ExpensesView() {
                 status: ticket.status as any,
                 paymentMethod: 'Efectivo',
                 receiptUrl: ticket.receipt_url,
-                taxAmount: ticket.tax_details?.amount || 0 // Asumiendo estructura o campo directo
+                category: ticket.category,
+                ivaAmount: ticket.iva_amount !== undefined ? ticket.iva_amount : null // Map DB iva_amount to ivaAmount
             }));
             setExpenses(mappedExpenses);
+            if (count !== null) setTotalCount(count);
         }
         setLoading(false);
-    }, [router]);
+    }, [router, pageSize]);
 
     // Carga inicial
     useEffect(() => {
-        fetchTickets();
-    }, [fetchTickets]);
+        fetchTickets(currentPage);
+    }, [fetchTickets, currentPage]);
+
+    const handlePageChange = (page: number) => {
+        setCurrentPage(page);
+    };
 
     // Handler para abrir Sheet (Ver/Editar)
     const handleRowClick = (expense: Expense) => {
         setSelectedExpense(expense);
+        setAiDraftData(null);
         setIsSheetOpen(true);
     };
 
-    // Handler para NUEVO gasto
+    // Handler para NUEVO gasto MANUAL
     const handleNewExpense = () => {
         setSelectedExpense(null); // Null indica creación
+        setAiDraftData(null);
         setIsSheetOpen(true);
+    };
+
+    // Handler tras confirmar IA
+    const handleAIConfirm = (data: any) => {
+        setSelectedExpense(null);
+        setAiDraftData(data); // Pasamos los datos escaneados como "initialData"
+        setIsSheetOpen(true); // Abre el form manual con los datos pre-cargados
     };
 
     // Handler para borrar ticket
@@ -103,7 +118,7 @@ export function ExpensesView() {
 
                         toast.success("Gasto eliminado correctamente");
                         // Recargar datos
-                        fetchTickets();
+                        fetchTickets(currentPage);
 
                     } catch (error: any) {
                         console.error("Error:", error);
@@ -118,13 +133,8 @@ export function ExpensesView() {
         });
     };
 
-    if (loading) {
-        return (
-            <div className="h-full w-full flex items-center justify-center">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            </div>
-        );
-    }
+    // Loading state is now handled by ExpenseTable to prevent header flicker
+    // if (loading) { ... } logic removed
 
     return (
         <div className="h-full w-full p-6">
@@ -132,24 +142,41 @@ export function ExpensesView() {
             {/* Header con Botón de Acción */}
             <div className="flex justify-between items-center mb-6">
                 <h1 className="text-2xl font-bold text-slate-800">Mis Rendiciones</h1>
-                <Button onClick={handleNewExpense} className="gap-2">
-                    <Plus className="h-4 w-4" />
-                    Nuevo Gasto
-                </Button>
+                <div className="flex gap-2">
+                    <Button onClick={() => setIsAIModalOpen(true)} className="gap-2 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white border-0 shadow-md">
+                        <Sparkles className="h-4 w-4" />
+                        Cargar con IA
+                    </Button>
+                    <Button onClick={handleNewExpense} variant="outline" className="gap-2 bg-blue-500 hover:bg-blue-600 hover:text-white text-white border-0 shadow-md">
+                        <Plus className="h-4 w-4" />
+                        Nuevo Gasto
+                    </Button>
+                </div>
             </div>
 
             <ExpenseTable
                 data={expenses}
-                isLoading={false}
+                isLoading={loading}
                 onRowClick={handleRowClick}
                 onDelete={handleDeleteTicket}
+                currentPage={currentPage}
+                totalPages={Math.ceil(totalCount / pageSize)}
+                onPageChange={handlePageChange}
+                totalCount={totalCount}
             />
 
             <ExpenseDetailsSheet
                 expense={selectedExpense}
+                initialData={aiDraftData} // Pasar datos de IA
                 isOpen={isSheetOpen}
                 onClose={() => setIsSheetOpen(false)}
-                onSuccess={fetchTickets} // Al guardar, recargamos la lista
+                onSuccess={() => fetchTickets(currentPage)} // Al guardar, recargamos la lista
+            />
+
+            <AIScanModal
+                isOpen={isAIModalOpen}
+                onClose={() => setIsAIModalOpen(false)}
+                onConfirmed={handleAIConfirm}
             />
         </div>
     );

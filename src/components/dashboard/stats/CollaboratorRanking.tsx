@@ -53,7 +53,7 @@ export function CollaboratorRanking() {
         <Card className="h-full">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium text-slate-500">
-                    Mayor gasto
+                    Usuario con mayores gastos
                 </CardTitle>
                 <div className="h-8 w-8 rounded-full bg-purple-100 flex items-center justify-center">
                     <TrendingUp className="h-4 w-4 text-purple-600" />

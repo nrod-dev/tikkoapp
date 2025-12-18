@@ -10,19 +10,20 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Expense } from "@/lib/data";
+import { Expense, EXPENSE_CATEGORIES } from "@/lib/data";
 import { Upload, Loader2, Calendar as CalendarIcon, DollarSign, Store } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 
 interface ExpenseDetailsSheetProps {
     expense: Expense | null; // null = Nuevo Gasto
+    initialData?: any; // Data from AI
     isOpen: boolean;
     onClose: () => void;
     onSuccess: () => void; // Para recargar la tabla
 }
 
-export function ExpenseDetailsSheet({ expense, isOpen, onClose, onSuccess }: ExpenseDetailsSheetProps) {
+export function ExpenseDetailsSheet({ expense, initialData, isOpen, onClose, onSuccess }: ExpenseDetailsSheetProps) {
     const [isUploading, setIsUploading] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -32,7 +33,9 @@ export function ExpenseDetailsSheet({ expense, isOpen, onClose, onSuccess }: Exp
         merchantName: "",
         date: "",
         amount: "",
+        ivaAmount: "", // New State
         currency: "ARS",
+        category: "",
         receiptUrl: ""
     });
 
@@ -48,8 +51,21 @@ export function ExpenseDetailsSheet({ expense, isOpen, onClose, onSuccess }: Exp
                     merchantName: expense.merchantName,
                     date: expense.date,
                     amount: expense.amount.toString(),
-                    currency: expense.currency,
+                    ivaAmount: expense.ivaAmount ? expense.ivaAmount.toString() : "",
+                    currency: expense.currency || "ARS",
+                    category: (expense as any).category || "",
                     receiptUrl: expense.receiptUrl || ""
+                });
+            } else if (initialData) {
+                // Nuevo con datos de IA
+                setFormData({
+                    merchantName: initialData.merchant_name || "",
+                    date: initialData.date || new Date().toISOString().split('T')[0],
+                    amount: initialData.amount ? initialData.amount.toString() : "",
+                    ivaAmount: initialData.iva_amount ? initialData.iva_amount.toString() : "",
+                    currency: initialData.currency || "ARS",
+                    category: initialData.category || "",
+                    receiptUrl: initialData.receiptUrl || ""
                 });
             } else {
                 // Reset para nuevo gasto
@@ -57,12 +73,14 @@ export function ExpenseDetailsSheet({ expense, isOpen, onClose, onSuccess }: Exp
                     merchantName: "",
                     date: new Date().toISOString().split('T')[0],
                     amount: "",
+                    ivaAmount: "",
                     currency: "ARS",
+                    category: "",
                     receiptUrl: ""
                 });
             }
         }
-    }, [isOpen, expense]);
+    }, [isOpen, expense, initialData]);
 
     const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (!e.target.files || e.target.files.length === 0) return;
@@ -123,7 +141,6 @@ export function ExpenseDetailsSheet({ expense, isOpen, onClose, onSuccess }: Exp
             }
 
             // 3. Obtener la Organización ID automáticamente
-            // console.log("Intentando obtener ID de organización...");
             const { data: orgId, error: orgError } = await supabase
                 .rpc('get_my_org_id');
 
@@ -137,9 +154,11 @@ export function ExpenseDetailsSheet({ expense, isOpen, onClose, onSuccess }: Exp
                 merchant_name: formData.merchantName,
                 date: formData.date,
                 amount: parseFloat(formData.amount),
+                iva_amount: formData.ivaAmount ? parseFloat(formData.ivaAmount) : null,
                 currency: formData.currency,
+                category: formData.category,
                 receipt_url: formData.receiptUrl,
-                status: 'pending_review',
+                status: 'pendiente',
                 created_by: session.user.id,
                 organization_id: orgId
             };
@@ -228,6 +247,21 @@ export function ExpenseDetailsSheet({ expense, isOpen, onClose, onSuccess }: Exp
                         </div>
 
                         <div className="grid w-full items-center gap-1.5">
+                            <Label htmlFor="ivaAmount">IVA</Label>
+                            <div className="relative">
+                                <DollarSign className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-500" />
+                                <Input
+                                    id="ivaAmount"
+                                    type="number"
+                                    className="pl-9"
+                                    placeholder="0.00 (Opcional)"
+                                    value={formData.ivaAmount}
+                                    onChange={e => setFormData({ ...formData, ivaAmount: e.target.value })}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="grid w-full items-center gap-1.5">
                             <Label htmlFor="date">Fecha</Label>
                             <div className="relative">
                                 <CalendarIcon className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-500" />
@@ -239,6 +273,22 @@ export function ExpenseDetailsSheet({ expense, isOpen, onClose, onSuccess }: Exp
                                     onChange={e => setFormData({ ...formData, date: e.target.value })}
                                 />
                             </div>
+                        </div>
+
+                        <div className="grid w-full items-center gap-1.5">
+                            <Label htmlFor="category">Categoría</Label>
+                            <select
+                                id="category"
+                                className="flex h-10 w-full items-center justify-between rounded-md border border-slate-200 bg-white px-3 py-2 text-sm ring-offset-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-950 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                value={formData.category}
+                                onChange={e => setFormData({ ...formData, category: e.target.value })}
+                            >
+                                {EXPENSE_CATEGORIES.map((cat) => (
+                                    <option key={cat} value={cat}>
+                                        {cat}
+                                    </option>
+                                ))}
+                            </select>
                         </div>
                     </div>
 

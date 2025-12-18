@@ -55,21 +55,18 @@ CREATE TABLE public.tickets (
   category text,
   ai_summary text,
   ai_raw_response jsonb,
-  source text DEFAULT 'web_upload',
+  created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+  updated_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+  receipt_url text,
+  source text DEFAULT 'web_upload'::text,
   whatsapp_message_id text UNIQUE,
   whatsapp_chat_id text,
   confidence_score numeric,
   confirmed_at timestamp with time zone,
   reviewed_at timestamp with time zone,
   reviewed_by uuid,
-  created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
-  updated_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
-  receipt_url text,
   CONSTRAINT tickets_pkey PRIMARY KEY (id),
   CONSTRAINT tickets_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
   CONSTRAINT tickets_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.profiles(id),
   CONSTRAINT tickets_reviewed_by_fkey FOREIGN KEY (reviewed_by) REFERENCES auth.users(id)
 );
-
-CREATE INDEX IF NOT EXISTS idx_tickets_status ON public.tickets(status);
-CREATE INDEX IF NOT EXISTS idx_tickets_wa_id ON public.tickets(whatsapp_message_id);

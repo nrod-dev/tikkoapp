@@ -19,7 +19,7 @@ import {
     Package
 } from "lucide-react";
 
-export type ExpenseStatus = 'approved' | 'rejected' | 'pending';
+export type ExpenseStatus = 'approved' | 'rejected' | 'pending' | 'pendiente' | 'processing';
 
 export const EXPENSE_CATEGORIES = [
     "Otros servicios",

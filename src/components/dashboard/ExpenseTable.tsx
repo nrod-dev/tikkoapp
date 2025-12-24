@@ -107,7 +107,10 @@ export function ExpenseTable({
                                     </TableCell>
                                     <TableCell className="pl-8">
                                         <Badge variant={expense.status === 'approved' ? 'default' : 'secondary'}>
-                                            {expense.status}
+                                            {expense.status === 'approved' ? 'Aprobado' :
+                                                expense.status === 'rejected' ? 'Rechazado' :
+                                                    expense.status === 'pendiente' ? 'Pendiente' :
+                                                        expense.status === 'processing' ? 'Procesando' : expense.status}
                                         </Badge>
                                     </TableCell>
                                     <TableCell onClick={(e) => e.stopPropagation()}>

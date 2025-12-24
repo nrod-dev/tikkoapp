@@ -39,6 +39,53 @@ async function sendWhatsAppMessage(to: string, text: string, contextId?: string)
     }
 }
 
+async function sendWhatsAppInteractiveButtons(to: string, text: string, buttons: { id: string, title: string }[], contextId?: string) {
+    const token = Deno.env.get('WHATSAPP_ACCESS_TOKEN');
+    const phoneId = Deno.env.get('WHATSAPP_PHONE_ID');
+
+    if (!token || !phoneId) {
+        console.error("Missing WHATSAPP_ACCESS_TOKEN or WHATSAPP_PHONE_ID");
+        return;
+    }
+
+    const payload: any = {
+        messaging_product: 'whatsapp',
+        to: to,
+        type: 'interactive',
+        interactive: {
+            type: 'button',
+            body: { text: text },
+            action: {
+                buttons: buttons.map(b => ({
+                    type: 'reply',
+                    reply: {
+                        id: b.id,
+                        title: b.title
+                    }
+                }))
+            }
+        }
+    };
+
+    if (contextId) {
+        payload.context = { message_id: contextId };
+    }
+
+    const response = await fetch(`${WHATSAPP_API_URL}/${phoneId}/messages`, {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) {
+        const err = await response.text();
+        console.error(`Error sending interactive message to ${to}:`, err);
+    }
+}
+
 async function downloadWhatsAppMedia(mediaId: string): Promise<{ buffer: ArrayBuffer, mimeType: string }> {
     const token = Deno.env.get('WHATSAPP_ACCESS_TOKEN');
     if (!token) throw new Error("Missing WHATSAPP_ACCESS_TOKEN");
@@ -172,7 +219,17 @@ Deno.serve(async (req) => {
         if (!session) {
             // Try to find user profile to link
             const { data: profile } = await supabase.from('profiles').select('id').eq('whatsapp_number', senderPhone).single();
-            const userId = profile?.id || null;
+            let userId = profile?.id || null;
+
+            // If not in profiles, check collaborators
+            let isCollaborator = false;
+            if (!userId) {
+                const { data: collaborator } = await supabase.from('collaborators').select('id').eq('phone', senderPhone).single();
+                if (collaborator) {
+                    userId = collaborator.id;
+                    isCollaborator = true;
+                }
+            }
 
             const { data: newSession, error: createError } = await supabase
                 .from('whatsapp_sessions')
@@ -194,9 +251,29 @@ Deno.serve(async (req) => {
         // 3. State Machine Logic
         const currentState = session.current_state;
         const msgType = message.message_type; // 'text' or 'image'
-        const msgBody = message.raw_payload?.entry?.[0]?.changes?.[0]?.value?.messages?.[0]?.text?.body || "";
+
+        // Extract body handling both text/image caption and BUTTON REPLIES
+        let msgBody = "";
+        const rawMessage = message.raw_payload?.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
+
+        if (rawMessage?.interactive?.button_reply) {
+            msgBody = rawMessage.interactive.button_reply.title; // Use button title as the text body (e.g., "Si", "Editar")
+        } else {
+            msgBody = rawMessage?.text?.body || "";
+        }
 
         console.log(`Processing message ${wa_message_id} from ${senderPhone}. State: ${currentState}. Type: ${msgType}`);
+
+        // --- GLOBAL COMMANDS (CANCEL) ---
+        if (['cancelar', 'cancel'].includes(msgBody.toLowerCase().trim()) && currentState !== 'IDLE') {
+            await supabase.from('whatsapp_sessions').update({ current_state: 'IDLE', temp_data: {} }).eq('id', session.id);
+            await sendWhatsAppMessage(senderPhone, "🚫 Operación cancelada. Envíame un nuevo ticket cuando quieras.", wa_message_id);
+
+            // Mark processed
+            await supabase.from('whatsapp_messages').update({ processed_status: 'processed' }).eq('id', message.id);
+            return new Response('Cancelled', { status: 200 });
+        }
+
 
         // --- CASE: IDLE ---
         if (currentState === 'IDLE') {
@@ -218,8 +295,18 @@ Deno.serve(async (req) => {
                         temp_data: extractedData
                     }).eq('id', session.id);
 
-                    const summary = `Leí esto:\n🏢 Comercio: ${extractedData.merchant_name}\n📅 Fecha: ${extractedData.date}\n💰 Monto: $${extractedData.amount} ${extractedData.currency}\n💵 IVA: ${extractedData.iva_amount ? '$' + extractedData.iva_amount : 'No discriminado'}\n🏷️ Categoría: ${extractedData.category}\n\n¿Es correcto? (Responde *Sí* para guardar o *Editar* para corregir)`;
-                    await sendWhatsAppMessage(senderPhone, summary, wa_message_id);
+                    const summary = `Leí esto:\n🏢 Comercio: ${extractedData.merchant_name}\n📅 Fecha: ${extractedData.date}\n💰 Monto: $${extractedData.amount} ${extractedData.currency}\n💵 IVA: ${extractedData.iva_amount ? '$' + extractedData.iva_amount : 'No discriminado'}\n🏷️ Categoría: ${extractedData.category}\n\n¿Es correcto?`;
+
+                    await sendWhatsAppInteractiveButtons(
+                        senderPhone,
+                        summary,
+                        [
+                            { id: 'confirm_yes', title: 'Si, cargar gasto' },
+                            { id: 'confirm_edit', title: 'Editar datos' },
+                            { id: 'confirm_cancel', title: 'Cancelar' }
+                        ],
+                        wa_message_id
+                    );
 
                 } catch (e) {
                     console.error("Gemini/Image Error:", e);
@@ -238,17 +325,28 @@ Deno.serve(async (req) => {
                 // SAVE TICKET
                 const ticketData = session.temp_data;
 
-                // Get Organization ID (Assuming single org or modifying to select default)
-                // Ideally user has a default org or we fetch memberships.
-                const { data: membership } = await supabase.from('organization_members').select('organization_id').eq('user_id', session.user_id).limit(1).single();
-                const orgId = membership?.organization_id;
+                // Get Organization ID
+                let orgId: string | null = null;
+                let isCollaborator = false;
+
+                // Check if user is a collaborator
+                const { data: collaborator } = await supabase.from('collaborators').select('organization_id, id').eq('id', session.user_id).single();
+
+                if (collaborator) {
+                    orgId = collaborator.organization_id;
+                    isCollaborator = true;
+                } else {
+                    // Fallback to Organization Members for standard users
+                    const { data: membership } = await supabase.from('organization_members').select('organization_id').eq('user_id', session.user_id).limit(1).single();
+                    orgId = membership?.organization_id;
+                }
 
                 if (!orgId) {
                     await sendWhatsAppMessage(senderPhone, "Error: No perteneces a ninguna organización.", wa_message_id);
                 } else {
-                    const { error: insertError } = await supabase.from('tickets').insert({
+
+                    const insertPayload: any = {
                         organization_id: orgId,
-                        created_by: session.user_id,
                         date: ticketData.date,
                         amount: ticketData.amount,
                         currency: ticketData.currency,
@@ -257,7 +355,16 @@ Deno.serve(async (req) => {
                         iva_amount: ticketData.iva_amount,
                         status: 'pendiente', // As requested
                         source: 'whatsapp'
-                    });
+                    };
+
+                    if (isCollaborator) {
+                        insertPayload.collaborator_id = session.user_id;
+                        // created_by is left undefined/null because they don't have a profile
+                    } else {
+                        insertPayload.created_by = session.user_id;
+                    }
+
+                    const { error: insertError } = await supabase.from('tickets').insert(insertPayload);
 
                     if (insertError) {
                         console.error("Ticket Insert Error:", insertError);
@@ -270,10 +377,19 @@ Deno.serve(async (req) => {
                 }
 
             } else if (text.includes('editar') || text.includes('no')) {
-                await sendWhatsAppMessage(senderPhone, "¿Qué dato quieres corregir? Escribe el cambio así: 'Monto: 5000' o 'Fecha: 2023-12-01'.", wa_message_id);
+                await sendWhatsAppMessage(senderPhone, "¿Qué dato quieres corregir? Escribe el cambio así: 'Monto: 5000' o 'Fecha: 2023-12-01'. O escribe 'Cancelar'.", wa_message_id);
                 await supabase.from('whatsapp_sessions').update({ current_state: 'EDITING' }).eq('id', session.id);
             } else {
-                await sendWhatsAppMessage(senderPhone, "Por favor responde *Sí* para confirmar o *Editar* para cambiar algo.", wa_message_id);
+                await sendWhatsAppInteractiveButtons(
+                    senderPhone,
+                    "Por favor selecciona una opción:",
+                    [
+                        { id: 'confirm_yes', title: 'Si' },
+                        { id: 'confirm_edit', title: 'Editar' },
+                        { id: 'confirm_cancel', title: 'Cancelar' }
+                    ],
+                    wa_message_id
+                );
             }
         }
 

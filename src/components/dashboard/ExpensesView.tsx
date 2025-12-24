@@ -41,7 +41,7 @@ export function ExpensesView() {
 
         const { data: tickets, error, count } = await supabase
             .from('tickets')
-            .select('*, created_by(full_name)', { count: 'exact' })
+            .select('*, created_by(full_name), collaborator_id(first_name, last_name)', { count: 'exact' })
             .order('created_at', { ascending: false })
             .range(from, to);
 
@@ -53,7 +53,9 @@ export function ExpensesView() {
                 merchantName: ticket.merchant_name || 'Sin Nombre',
                 merchantLogo: (ticket.merchant_name?.charAt(0)) || '?',
                 date: ticket.date || '',
-                user: ticket.created_by?.full_name || 'Desconocido',
+                user: (ticket.collaborator_id?.first_name
+                    ? `${ticket.collaborator_id.first_name} ${ticket.collaborator_id.last_name}`
+                    : ticket.created_by?.full_name) || 'Desconocido',
                 amount: ticket.amount || 0,
                 currency: ticket.currency || 'ARS',
                 status: ticket.status as any,

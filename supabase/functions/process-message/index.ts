@@ -135,7 +135,7 @@ async function processImage(mediaId: string, apiKey: string): Promise<any> {
 
     const prompt = `
         Analyze this receipt image and extract the following information in JSON format:
-        - merchant_name: The name of the merchant or store.
+        - merchant_name: The legal name of the merchant ("Razón Social") found in the text. CRITICAL: Do NOT infer from logos. Only read the text.
         - date: The date of the transaction in YYYY-MM-DD format.
         - amount: The total amount paid (number only, no symbols).
         - currency: The currency code (e.g., ARS, USD). Assume ARS if in Argentina context or unclear.
@@ -321,7 +321,7 @@ Deno.serve(async (req) => {
         else if (currentState === 'WAITING_CONFIRMATION') {
             const text = msgBody.toLowerCase().trim();
 
-            if (['si', 'sí', 'confirmar', 'ok', 'correcto'].includes(text)) {
+            if (['si', 'sí', 'confirmar', 'ok', 'correcto', 'si, cargar gasto'].includes(text)) {
                 // SAVE TICKET
                 const ticketData = session.temp_data;
 

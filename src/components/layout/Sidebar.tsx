@@ -3,9 +3,21 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, FileText, Settings, Users, ClipboardCheck, ChartPie, Receipt } from 'lucide-react';
+import { LayoutDashboard, FileText, Settings, Users, ClipboardCheck, ChartPie, Receipt, LogOut } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { useState, useEffect } from 'react';
+import { supabase } from '@/lib/supabase';
+import { useRouter } from 'next/navigation';
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogFooter,
+    DialogTrigger,
+    DialogClose,
+} from "@/components/ui/dialog";
 
 import Image from 'next/image';
 
@@ -19,7 +31,26 @@ const menuItems = [
 ];
 
 export function Sidebar({ className }: SidebarProps) {
+    const [userIdentifier, setUserIdentifier] = useState<string | null>(null);
+    const router = useRouter();
     const pathname = usePathname();
+
+    useEffect(() => {
+        const getUser = async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user) {
+                // Prefer metadata full_name, fallback to email
+                const name = user.user_metadata?.full_name;
+                setUserIdentifier(name || user.email || 'Usuario');
+            }
+        };
+        getUser();
+    }, []);
+
+    const handleLogout = async () => {
+        await supabase.auth.signOut();
+        router.push('/login');
+    };
 
     return (
         <div className={cn("pb-12 min-h-screen bg-[#ffffff] text-black w-64 flex flex-col fixed left-0 top-0 border-r border-gray-200", className)}>
@@ -58,7 +89,7 @@ export function Sidebar({ className }: SidebarProps) {
                     </div>
                 </div>
             </div>
-            <div className="mt-auto px-3 py-2">
+            <div className="mt-auto px-3 py-2 space-y-2">
                 <Link href="/configuracion">
                     <Button
                         variant="ghost"
@@ -73,6 +104,32 @@ export function Sidebar({ className }: SidebarProps) {
                         Configuración
                     </Button>
                 </Link>
+
+                <Dialog>
+                    <DialogTrigger asChild>
+                        <Button
+                            variant="ghost"
+                            className="w-full justify-start h-auto py-3 text-base font-medium text-red-600 hover:text-red-700 hover:bg-red-50 border border-transparent"
+                        >
+                            <LogOut className="mr-3 h-5 w-5" />
+                            <div className="flex flex-col items-start overflow-hidden">
+                                <span className="truncate w-full text-left text-sm text-slate-900 font-semibold">{userIdentifier || 'Cargando...'}</span>
+                                <span className="text-xs text-slate-500 font-normal">Cerrar Sesión</span>
+                            </div>
+                        </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                        <DialogHeader>
+                            <DialogTitle>¿Desea cerrar sesión?</DialogTitle>
+                        </DialogHeader>
+                        <DialogFooter className="flex gap-2 sm:gap-0">
+                            <DialogClose asChild>
+                                <Button variant="outline">No, cancelar</Button>
+                            </DialogClose>
+                            <Button variant="destructive" onClick={handleLogout}>Si, cerrar sesión</Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
             </div>
         </div>
     );

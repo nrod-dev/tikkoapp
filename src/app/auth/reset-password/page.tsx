@@ -1,4 +1,3 @@
-// src/app/login/page.tsx
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -8,89 +7,63 @@ import { Input } from '@/components/ui/input';
 import { useRouter } from 'next/navigation';
 import { Loader2, Eye, EyeOff } from 'lucide-react';
 import { toast } from 'sonner';
-import Link from 'next/link';
 
-export default function LoginPage() {
-    const [email, setEmail] = useState('');
+export default function ResetPasswordPage() {
     const [password, setPassword] = useState('');
+    const [confirmPassword, setConfirmPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [loading, setLoading] = useState(false);
-    const [checkingSession, setCheckingSession] = useState(true);
     const router = useRouter();
 
+    // Validar que haya sesión (el link de email loguea al usuario automáticamente)
     useEffect(() => {
         const checkSession = async () => {
             const { data: { session } } = await supabase.auth.getSession();
-            if (session) {
-                router.push('/');
-            } else {
-                setCheckingSession(false);
+            if (!session) {
+                toast.error('Enlace inválido o expirado');
+                router.push('/login');
             }
         };
         checkSession();
     }, [router]);
 
-    const handleLogin = async (e: React.FormEvent) => {
+    const handleUpdatePassword = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!email || !password) {
-            toast.error('Por favor completá todos los campos');
+
+        if (password !== confirmPassword) {
+            toast.error('Las contraseñas no coinciden');
+            return;
+        }
+
+        if (password.length < 6) {
+            toast.error('La contraseña debe tener al menos 6 caracteres');
             return;
         }
 
         setLoading(true);
 
-        const { error } = await supabase.auth.signInWithPassword({
-            email,
-            password,
+        const { error } = await supabase.auth.updateUser({
+            password: password
         });
 
         if (error) {
-            toast.error(error.message === 'Invalid login credentials' ? 'Credenciales inválidas' : error.message);
+            toast.error(error.message);
         } else {
-            toast.success('¡Bienvenido!');
+            toast.success('Contraseña actualizada correctamente');
             router.push('/');
         }
         setLoading(false);
     };
 
-    if (checkingSession) {
-        return (
-            <div className="flex h-screen w-full items-center justify-center bg-slate-50">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            </div>
-        );
-    }
-
     return (
         <div className="flex h-screen w-full items-center justify-center bg-slate-50">
             <div className="w-full max-w-md p-8 bg-white rounded-lg shadow-md">
-                <h1 className="text-2xl font-bold mb-2 text-center text-slate-800">Bienvenido a Tikko</h1>
-                <p className="text-center text-slate-500 mb-6">Ingresá tus credenciales para continuar.</p>
+                <h1 className="text-2xl font-bold mb-2 text-center text-slate-800">Nueva contraseña</h1>
+                <p className="text-center text-slate-500 mb-6">Ingresá tu nueva contraseña para acceder a Tikko.</p>
 
-                <form onSubmit={handleLogin} className="space-y-4">
+                <form onSubmit={handleUpdatePassword} className="space-y-4">
                     <div className="space-y-2">
-                        <label htmlFor="email" className="text-sm font-medium text-slate-700">Email</label>
-                        <Input
-                            id="email"
-                            type="email"
-                            placeholder="tu@email.com"
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                            required
-                            className="w-full"
-                        />
-                    </div>
-
-                    <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                            <label htmlFor="password" className="text-sm font-medium text-slate-700">Contraseña</label>
-                            <Link
-                                href="/auth/forgot-password"
-                                className="text-xs text-primary hover:underline font-medium"
-                            >
-                                ¿Olvidaste tu contraseña?
-                            </Link>
-                        </div>
+                        <label htmlFor="password" className="text-sm font-medium text-slate-700">Nueva contraseña</label>
                         <div className="relative">
                             <Input
                                 id="password"
@@ -115,9 +88,22 @@ export default function LoginPage() {
                         </div>
                     </div>
 
+                    <div className="space-y-2">
+                        <label htmlFor="confirmPassword" className="text-sm font-medium text-slate-700">Confirmar contraseña</label>
+                        <Input
+                            id="confirmPassword"
+                            type={showPassword ? "text" : "password"}
+                            placeholder="••••••••"
+                            value={confirmPassword}
+                            onChange={(e) => setConfirmPassword(e.target.value)}
+                            required
+                            className="w-full"
+                        />
+                    </div>
+
                     <Button type="submit" className="w-full mt-6" disabled={loading}>
                         {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                        {loading ? 'Ingresando...' : 'Ingresar'}
+                        {loading ? 'Actualizar contraseña' : 'Actualizar contraseña'}
                     </Button>
                 </form>
             </div>

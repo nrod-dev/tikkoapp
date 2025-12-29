@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 
 import { supabase } from "@/lib/supabase";
 import { Expense } from "@/lib/data";
-import { Loader2, Check, X, Paperclip, Ticket, DollarSign, Bell, Clock } from "lucide-react";
+import { Loader2, Check, X, Paperclip, Ticket, DollarSign, Bell, Clock, ListChecks } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ReceiptModal } from "@/components/dashboard/ReceiptModal";
 import { toast } from "sonner";
@@ -155,7 +155,7 @@ export function ApprovalsView() {
                                 </div>
                             </div>
                             <div className="bg-blue-50 p-3 rounded-xl">
-                                <Ticket className="h-6 w-6 text-blue-600" />
+                                <ListChecks className="h-6 w-6 text-blue-600" />
                             </div>
                         </div>
                     </CardContent>
@@ -169,9 +169,6 @@ export function ApprovalsView() {
                                 <h3 className="text-4xl font-bold text-slate-900">
                                     $ {metrics.totalAmount.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                 </h3>
-                                <div className="flex items-center mt-4 text-sm text-emerald-600 font-medium">
-                                    <span className="font-bold mr-1">+12%</span> vs mes anterior
-                                </div>
                             </div>
                             <div className="bg-emerald-50 p-3 rounded-xl">
                                 <DollarSign className="h-6 w-6 text-emerald-600" />

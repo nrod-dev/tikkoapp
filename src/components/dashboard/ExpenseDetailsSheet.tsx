@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Expense, EXPENSE_CATEGORIES } from "@/lib/data";
-import { Upload, Loader2, Calendar as CalendarIcon, DollarSign, Store } from "lucide-react";
+import { Upload, Loader2, Calendar as CalendarIcon, DollarSign, Store, Download } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 
@@ -36,7 +36,8 @@ export function ExpenseDetailsSheet({ expense, initialData, isOpen, onClose, onS
         ivaAmount: "", // New State
         currency: "ARS",
         category: "",
-        receiptUrl: ""
+        receiptUrl: "",
+        merchantTaxId: ""
     });
 
     // Estado separado para preview local (UX inmediata)
@@ -54,7 +55,8 @@ export function ExpenseDetailsSheet({ expense, initialData, isOpen, onClose, onS
                     ivaAmount: expense.ivaAmount ? expense.ivaAmount.toString() : "",
                     currency: expense.currency || "ARS",
                     category: (expense as any).category || "",
-                    receiptUrl: expense.receiptUrl || ""
+                    receiptUrl: expense.receiptUrl || "",
+                    merchantTaxId: expense.merchantTaxId || ""
                 });
             } else if (initialData) {
                 // Nuevo con datos de IA
@@ -65,7 +67,8 @@ export function ExpenseDetailsSheet({ expense, initialData, isOpen, onClose, onS
                     ivaAmount: initialData.iva_amount ? initialData.iva_amount.toString() : "",
                     currency: initialData.currency || "ARS",
                     category: initialData.category || "",
-                    receiptUrl: initialData.receiptUrl || ""
+                    receiptUrl: initialData.receiptUrl || "",
+                    merchantTaxId: initialData.merchant_tax_id || ""
                 });
             } else {
                 // Reset para nuevo gasto
@@ -76,7 +79,8 @@ export function ExpenseDetailsSheet({ expense, initialData, isOpen, onClose, onS
                     ivaAmount: "",
                     currency: "ARS",
                     category: "",
-                    receiptUrl: ""
+                    receiptUrl: "",
+                    merchantTaxId: ""
                 });
             }
         }
@@ -158,6 +162,7 @@ export function ExpenseDetailsSheet({ expense, initialData, isOpen, onClose, onS
                 currency: formData.currency,
                 category: formData.category,
                 receipt_url: formData.receiptUrl,
+                merchant_tax_id: formData.merchantTaxId,
                 status: 'pendiente',
                 created_by: session.user.id,
                 organization_id: orgId
@@ -310,9 +315,15 @@ export function ExpenseDetailsSheet({ expense, initialData, isOpen, onClose, onS
                                         }}
                                     />
                                 </div>
-                                <div className="text-xs text-center break-all text-slate-400 px-2 select-all">
-                                    Descargar imagen: <a href={displayImage} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">{displayImage}</a>
-                                </div>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="w-full gap-2 text-slate-600"
+                                    onClick={() => window.open(displayImage, '_blank')}
+                                >
+                                    <Download className="h-4 w-4" />
+                                    Descargar Comprobante
+                                </Button>
                                 <Button variant="ghost" size="sm" onClick={() => fileInputRef.current?.click()} className="text-slate-500 hover:text-primary">
                                     Cambiar imagen
                                 </Button>

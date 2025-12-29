@@ -80,5 +80,6 @@ export interface Expense {
     paymentMethod: string;
     ivaAmount: number | null; // IVA extracted or manual
     category?: string; // Now we could type this optionally as ExpenseCategory | string to allow legacy data briefly
+    merchantTaxId?: string;
 }
 

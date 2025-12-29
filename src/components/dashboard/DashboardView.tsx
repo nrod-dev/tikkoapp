@@ -1,7 +1,6 @@
 "use client";
 
-import { KPICards } from "./stats/KPICards";
-import { CollaboratorRanking } from "./stats/CollaboratorRanking";
+
 import { CategoryDonutChart } from "./stats/CategoryDonutChart";
 import { TrendLineChart } from "./stats/TrendLineChart";
 
@@ -13,11 +12,7 @@ export function DashboardView() {
                 <p className="text-slate-500 text-sm">Resumen de gastos y métricas de la empresa</p>
             </div>
 
-            {/* Top Row: Collaborator Ranking and Total Pending */}
-            <div className="grid gap-6 md:grid-cols-2">
-                <CollaboratorRanking />
-                <KPICards />
-            </div>
+
 
             {/* Main Charts Area */}
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-7">

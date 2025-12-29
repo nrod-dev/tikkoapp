@@ -117,11 +117,38 @@ async function downloadWhatsAppMedia(mediaId: string): Promise<{ buffer: ArrayBu
 }
 
 
-async function processImage(mediaId: string, apiKey: string): Promise<any> {
+async function processImage(mediaId: string, apiKey: string, supabase: any, uniqueId: string): Promise<any> {
 
     console.log("Downloading media...", mediaId);
     const { buffer, mimeType } = await downloadWhatsAppMedia(mediaId);
 
+    // 1. Upload to Supabase Storage
+    const fileExt = mimeType.split('/')[1] || 'jpg';
+    // Path: whatsapp/2023/message_id.jpg
+    const year = new Date().getFullYear();
+    const filePath = `whatsapp/${year}/${uniqueId}.${fileExt}`;
+
+    console.log(`Uploading image to ${filePath}...`);
+
+    const { error: uploadError } = await supabase.storage
+        .from('receipts')
+        .upload(filePath, buffer, {
+            contentType: mimeType,
+            upsert: true
+        });
+
+    let receiptUrl = null;
+
+    if (uploadError) {
+        console.error("Storage Upload Error:", uploadError);
+        // We continue even if upload fails, to at least process the data
+    } else {
+        const { data } = supabase.storage.from('receipts').getPublicUrl(filePath);
+        receiptUrl = data.publicUrl;
+        console.log("Image uploaded to:", receiptUrl);
+    }
+
+    // 2. Process with Gemini
     // Native base64 for Deno - processing in chunks to avoid stack overflow
     const uint8Array = new Uint8Array(buffer);
     let binaryString = "";
@@ -136,6 +163,7 @@ async function processImage(mediaId: string, apiKey: string): Promise<any> {
     const prompt = `
         Analyze this receipt image and extract the following information in JSON format:
         - merchant_name: The legal name of the merchant ("Razón Social") found in the text. CRITICAL: Do NOT infer from logos. Only read the text.
+        - merchant_tax_id: The tax ID of the merchant (CUIT in Argentina, usually 11 digits like 20-12345678-9 or similar). If not found, return null.
         - date: The date of the transaction in YYYY-MM-DD format.
         - amount: The total amount paid (number only, no symbols).
         - currency: The currency code (e.g., ARS, USD). Assume ARS if in Argentina context or unclear.
@@ -171,7 +199,19 @@ async function processImage(mediaId: string, apiKey: string): Promise<any> {
     if (!generatedText) throw new Error("No text from Gemini");
 
     const cleanText = generatedText.replace(/```json/g, '').replace(/```/g, '').trim();
-    return JSON.parse(cleanText);
+
+    let result: any = {};
+    try {
+        result = JSON.parse(cleanText);
+    } catch (e) {
+        console.error("Failed to parse Gemini JSON:", cleanText);
+        throw new Error("Invalid JSON from Gemini");
+    }
+
+    // Attach the URL
+    result.receipt_url = receiptUrl;
+
+    return result;
 }
 
 // --- Main Worker ---
@@ -287,7 +327,12 @@ Deno.serve(async (req) => {
                 await sendWhatsAppMessage(senderPhone, "Procesando comprobante... 🧾⏳", wa_message_id);
 
                 try {
-                    const extractedData = await processImage(mediaId, Deno.env.get('GEMINI_API_KEY') || '');
+                    const extractedData = await processImage(
+                        mediaId,
+                        Deno.env.get('GEMINI_API_KEY') || '',
+                        supabase,
+                        wa_message_id
+                    );
 
                     // Update Session
                     await supabase.from('whatsapp_sessions').update({
@@ -295,7 +340,7 @@ Deno.serve(async (req) => {
                         temp_data: extractedData
                     }).eq('id', session.id);
 
-                    const summary = `Leí esto:\n🏢 Comercio: ${extractedData.merchant_name}\n📅 Fecha: ${extractedData.date}\n💰 Monto: $${extractedData.amount} ${extractedData.currency}\n💵 IVA: ${extractedData.iva_amount ? '$' + extractedData.iva_amount : 'No discriminado'}\n🏷️ Categoría: ${extractedData.category}\n\n¿Es correcto?`;
+                    const summary = `Leí esto:\n🏢 Comercio: ${extractedData.merchant_name}\n🆔 CUIT: ${extractedData.merchant_tax_id || 'No encontrado'}\n📅 Fecha: ${extractedData.date}\n💰 Monto: $${extractedData.amount} ${extractedData.currency}\n💵 IVA: ${extractedData.iva_amount ? '$' + extractedData.iva_amount : 'No discriminado'}\n🏷️ Categoría: ${extractedData.category}\n\n¿Es correcto?`;
 
                     await sendWhatsAppInteractiveButtons(
                         senderPhone,
@@ -351,10 +396,12 @@ Deno.serve(async (req) => {
                         amount: ticketData.amount,
                         currency: ticketData.currency,
                         merchant_name: ticketData.merchant_name,
+                        merchant_tax_id: ticketData.merchant_tax_id,
                         category: ticketData.category,
                         iva_amount: ticketData.iva_amount,
                         status: 'pendiente', // As requested
-                        source: 'whatsapp'
+                        source: 'whatsapp',
+                        receipt_url: ticketData.receipt_url || null
                     };
 
                     if (isCollaborator) {
@@ -406,6 +453,7 @@ Deno.serve(async (req) => {
                     'monto': 'amount',
                     'fecha': 'date',
                     'comercio': 'merchant_name',
+                    'cuit': 'merchant_tax_id',
                     'categoria': 'category',
                     'categoría': 'category',
                     'iva': 'iva_amount'
@@ -424,7 +472,7 @@ Deno.serve(async (req) => {
                     temp_data: currentData
                 }).eq('id', session.id);
 
-                const summary = `Dato actualizado. Revisemos:\n🏢 Comercio: ${currentData.merchant_name}\n📅 Fecha: ${currentData.date}\n💰 Monto: $${currentData.amount} ${currentData.currency}\n💵 IVA: ${currentData.iva_amount ? '$' + currentData.iva_amount : 'No discriminado'}\n\n¿Confirmamos ahora? (Responde *Sí*)`;
+                const summary = `Dato actualizado. Revisemos:\n🏢 Comercio: ${currentData.merchant_name}\n🆔 CUIT: ${currentData.merchant_tax_id || 'No encontrado'}\n📅 Fecha: ${currentData.date}\n💰 Monto: $${currentData.amount} ${currentData.currency}\n💵 IVA: ${currentData.iva_amount ? '$' + currentData.iva_amount : 'No discriminado'}\n\n¿Confirmamos ahora? (Responde *Sí*)`;
                 await sendWhatsAppMessage(senderPhone, summary, wa_message_id);
             }
         }

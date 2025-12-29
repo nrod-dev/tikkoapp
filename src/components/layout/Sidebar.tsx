@@ -26,7 +26,7 @@ interface SidebarProps extends React.HTMLAttributes<HTMLDivElement> { }
 const menuItems = [
     { href: '/', label: 'Dashboard', icon: ChartPie },
     { href: '/aprobaciones', label: 'Aprobaciones', icon: ClipboardCheck },
-    { href: '/rendiciones', label: 'Rendiciones', icon: Receipt },
+    { href: '/rendiciones', label: 'Gastos', icon: Receipt },
     { href: '/organization', label: 'Mi organización', icon: Users },
 ];
 

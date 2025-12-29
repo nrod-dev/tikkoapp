@@ -54,6 +54,7 @@ export function ExpenseTable({
                     <TableHeader>
                         <TableRow>
                             <TableHead>Comercio</TableHead>
+                            <TableHead>CUIT</TableHead>
                             <TableHead>Fecha</TableHead>
                             <TableHead>Usuario</TableHead>
                             <TableHead className="text-right">IVA</TableHead>
@@ -65,7 +66,7 @@ export function ExpenseTable({
                     <TableBody>
                         {data.length === 0 ? (
                             <TableRow>
-                                <TableCell colSpan={7} className="text-center h-24 text-slate-500">
+                                <TableCell colSpan={8} className="text-center h-24 text-slate-500">
                                     No hay rendiciones cargadas.
                                 </TableCell>
                             </TableRow>
@@ -95,6 +96,7 @@ export function ExpenseTable({
                                             <span>{expense.merchantName}</span>
                                         </div>
                                     </TableCell>
+                                    <TableCell className="text-xs text-slate-500">{expense.merchantTaxId || "-"}</TableCell>
                                     <TableCell>{expense.date}</TableCell>
                                     <TableCell>{expense.user}</TableCell>
                                     <TableCell className="text-right font-medium">
@@ -174,6 +176,6 @@ export function ExpenseTable({
                     </Button>
                 </div>
             </div>
-        </div>
+        </div >
     );
 }

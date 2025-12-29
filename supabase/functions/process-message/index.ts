@@ -260,20 +260,24 @@ Deno.serve(async (req) => {
             // Try to find user profile to link
             const { data: profile } = await supabase.from('profiles').select('id').eq('whatsapp_number', senderPhone).single();
             let userId = profile?.id || null;
+            let collaboratorId = null;
 
             // If not in profiles, check collaborators
-            let isCollaborator = false;
             if (!userId) {
                 const { data: collaborator } = await supabase.from('collaborators').select('id').eq('phone', senderPhone).single();
                 if (collaborator) {
-                    userId = collaborator.id;
-                    isCollaborator = true;
+                    collaboratorId = collaborator.id;
                 }
             }
 
             const { data: newSession, error: createError } = await supabase
                 .from('whatsapp_sessions')
-                .insert({ phone_number: senderPhone, user_id: userId, current_state: 'IDLE' })
+                .insert({
+                    phone_number: senderPhone,
+                    user_id: userId,
+                    collaborator_id: collaboratorId,
+                    current_state: 'IDLE'
+                })
                 .select()
                 .single();
 
@@ -282,7 +286,7 @@ Deno.serve(async (req) => {
         }
 
         // Stop if user not registered
-        if (!session.user_id) {
+        if (!session.user_id && !session.collaborator_id) {
             await sendWhatsAppMessage(senderPhone, "Hola! 👋 No reconocemos este número. Por favor contacta a soporte para registrarte.", wa_message_id);
             await supabase.from('whatsapp_messages').update({ processed_status: 'failed_auth' }).eq('id', message.id);
             return new Response('User not found', { status: 200 });
@@ -374,13 +378,14 @@ Deno.serve(async (req) => {
                 let orgId: string | null = null;
                 let isCollaborator = false;
 
-                // Check if user is a collaborator
-                const { data: collaborator } = await supabase.from('collaborators').select('organization_id, id').eq('id', session.user_id).single();
-
-                if (collaborator) {
-                    orgId = collaborator.organization_id;
-                    isCollaborator = true;
-                } else {
+                // Check if user is a collaborator based on session
+                if (session.collaborator_id) {
+                    const { data: collaborator } = await supabase.from('collaborators').select('organization_id').eq('id', session.collaborator_id).single();
+                    if (collaborator) {
+                        orgId = collaborator.organization_id;
+                        isCollaborator = true;
+                    }
+                } else if (session.user_id) {
                     // Fallback to Organization Members for standard users
                     const { data: membership } = await supabase.from('organization_members').select('organization_id').eq('user_id', session.user_id).limit(1).single();
                     orgId = membership?.organization_id;
@@ -405,7 +410,7 @@ Deno.serve(async (req) => {
                     };
 
                     if (isCollaborator) {
-                        insertPayload.collaborator_id = session.user_id;
+                        insertPayload.collaborator_id = session.collaborator_id;
                         // created_by is left undefined/null because they don't have a profile
                     } else {
                         insertPayload.created_by = session.user_id;

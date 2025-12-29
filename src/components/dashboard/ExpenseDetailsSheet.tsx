@@ -206,7 +206,7 @@ export function ExpenseDetailsSheet({ expense, initialData, isOpen, onClose, onS
 
     return (
         <Sheet open={isOpen} onOpenChange={onClose}>
-            <SheetContent className="w-[400px] sm:w-[540px] overflow-y-auto">
+            <SheetContent className="w-[400px] sm:w-[540px] overflow-y-auto" onOpenAutoFocus={(e) => e.preventDefault()}>
                 <SheetHeader className="space-y-4 pb-6 border-b">
                     <SheetTitle className="text-2xl font-bold text-slate-900">
                         {expense ? "Editar Gasto" : "Nuevo Gasto"}

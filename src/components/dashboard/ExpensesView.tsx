@@ -6,12 +6,12 @@ import { supabase } from "@/lib/supabase";
 import { ExpenseTable } from "@/components/dashboard/ExpenseTable";
 import { ExpenseDetailsSheet } from "@/components/dashboard/ExpenseDetailsSheet";
 import { Expense } from "@/lib/data";
-import { Loader2, Plus, Sparkles, FileDown, Search, FilterX } from "lucide-react";
+import { Loader2, Plus, FileDown, Search, FilterX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { EXPENSE_CATEGORIES } from "@/lib/data";
 import { toast } from "sonner";
-import { AIScanModal } from "@/components/dashboard/AIScanModal";
+
 
 export function ExpensesView() {
     const [expenses, setExpenses] = useState<Expense[]>([]);
@@ -19,7 +19,7 @@ export function ExpensesView() {
     const [selectedExpense, setSelectedExpense] = useState<Expense | null>(null);
     const [aiDraftData, setAiDraftData] = useState<any>(null); // Datos temporales de IA
     const [isSheetOpen, setIsSheetOpen] = useState(false);
-    const [isAIModalOpen, setIsAIModalOpen] = useState(false);
+
 
     // Filters State
     const [filters, setFilters] = useState({
@@ -233,11 +233,7 @@ export function ExpensesView() {
     };
 
     // Handler tras confirmar IA
-    const handleAIConfirm = (data: any) => {
-        setSelectedExpense(null);
-        setAiDraftData(data); // Pasamos los datos escaneados como "initialData"
-        setIsSheetOpen(true); // Abre el form manual con los datos pre-cargados
-    };
+
 
     // Handler para borrar ticket
     const handleDeleteTicket = (id: string) => {
@@ -286,11 +282,8 @@ export function ExpensesView() {
             <div className="flex justify-between items-center mb-6">
                 <h1 className="text-2xl font-bold text-slate-800">Mis gastos</h1>
                 <div className="flex gap-2">
-                    <Button onClick={() => setIsAIModalOpen(true)} className="gap-2 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white border-0 shadow-md">
-                        <Sparkles className="h-4 w-4" />
-                        Cargar con IA
-                    </Button>
-                    <Button onClick={handleNewExpense} variant="outline" className="gap-2 bg-blue-500 hover:bg-blue-600 hover:text-white text-white border-0 shadow-md">
+
+                    <Button onClick={handleNewExpense} className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white border-0 shadow-md">
                         <Plus className="h-4 w-4" />
                         Nuevo Gasto
                     </Button>
@@ -416,11 +409,7 @@ export function ExpensesView() {
                 onSuccess={() => fetchTickets(currentPage)} // Al guardar, recargamos la lista
             />
 
-            <AIScanModal
-                isOpen={isAIModalOpen}
-                onClose={() => setIsAIModalOpen(false)}
-                onConfirmed={handleAIConfirm}
-            />
+
         </div>
     );
 }
